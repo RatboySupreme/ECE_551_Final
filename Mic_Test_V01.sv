@@ -68,7 +68,7 @@ module Mic_Demo_V01(
     //logic S_AXI_ACLK;
     logic S_AXI_ARESETN = 1'b1; //Initializing reset to high
     logic[C_S_AXI_ID_WIDTH-1:0] S_AXI_AWID = 1'b0; //ID doesn't matter in our application
-    logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_AWADDR = 16'b0000000000000000; //Just initializing the address
+    logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_AWADDR = 16'b0000000000001000; //Just initializing the address
     logic[7:0] S_AXI_AWLEN = 8'b00000000; //One burst at a time
     logic[2:0] S_AXI_AWSIZE = 3'b101; //32 Bit data bus
     logic[1:0] S_AXI_AWBURST = 2'b01; //Incremental burst, but we are only doing 1 burst at a time.
@@ -125,8 +125,10 @@ psram_ip_v1_1_S00_AXI u1(clk, S_AXI_ARESETN, S_AXI_AWID, S_AXI_AWADDR, S_AXI_AWL
                          MEM_ADDR_OUT, MEM_CEN, MEM_OEN, MEM_WEN, MEM_LBN, MEM_UBN,
                          MEM_ADV, MEM_CRE, MEM_DATA_I, MEM_DATA_O, MEM_DATA_T);
                          
-logic[26:0] counter = 27'b000000000000000000000000000;  //Counter to count to 100 Million (1 Second)     
-logic rstate, wstate, ledr, ledw = 1'b0;
+logic[26:0] counter = 27'b000000000000000000000000000;  //Counter to count to 100 Million (1 Second)  
+logic [4:0] bitcounter = 5'b00000;   
+
+logic bstate, rstate, wstate, ledr, ledw = 1'b0;
 
 //Button debounce for reading
 wire pb_read;
@@ -160,8 +162,20 @@ debounce uut2 (
     .pb_out(pb_write)
 );
 always @(posedge pb_write)begin
-
+    wstate <= 1'b1;
 end
+
+always @(posedge clk)begin
+    if(wstate == 1)begin
+        ledw = 1'b1;
+        counter = counter + 1;
+        if(counter >= 99999999)begin
+            counter = 0;
+            wstate = 1'b0;
+            ledw <= 1'b0;
+        end
+    end
+end  
 assign ledwrite = ledw;
 
 reg [4:0]clk_cntr_reg;
@@ -177,14 +191,44 @@ end
 //    if(S_AXI_AWREADY == 1'b1 & S_AXI_AWVALID == 1'b1)begin
 //       S_AXI_AWADDR = S_AXI_AWADDR + 1;
         
-    
 always @(posedge clk)
 begin
-    if(clk_cntr_reg == 5'b01111 & rstate == 1) begin
-        pwm_val_reg <= sdata;
+    if(clk_cntr_reg == 5'b01111 & bstate == 1) begin
+        bitcounter = bitcounter + 1;
     end
 end
 
+integer i;
+
+//Writing to memory
+always @(posedge clk)
+begin
+    if(clk_cntr_reg == 5'b01111 & wstate == 1) begin
+        pwm_val_reg = sdata;
+        i = bitcounter;
+        S_AXI_WDATA[i] = pwm_val_reg;
+        S_AXI_WVALID = 0; //Don't write yet
+    end
+    if(i == 16 & wstate == 1) begin
+        S_AXI_AWADDR = S_AXI_AWADDR + 1; //Increment address
+        S_AXI_AWVALID = 1; //Address is valid
+        S_AXI_WVALID = 1; //Data is valid
+    end
+end
+//Reading from memory
+always @(posedge clk)
+begin
+    if(clk_cntr_reg == 5'b01111 & rstate == 1) begin
+        i = bitcounter;
+        pwm_val_reg = S_AXI_RDATA[i];
+        S_AXI_RREADY = 0; //Don't read yet
+    end
+    if(i == 16 & wstate == 1) begin
+        S_AXI_ARADDR = S_AXI_ARADDR + 1; //Increment address
+        S_AXI_ARVALID = 1; //Address is valid
+        S_AXI_RREADY = 1; //Ready to Read
+    end
+end
 //sclk = 100MHz / 32 = 3.125 MHz
 assign sclk = clk_cntr_reg[4];
 
