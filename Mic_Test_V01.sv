@@ -68,7 +68,7 @@ module Mic_Demo_V01(
     //logic S_AXI_ACLK;
     logic S_AXI_ARESETN = 1'b1; //Initializing reset to high
     logic[C_S_AXI_ID_WIDTH-1:0] S_AXI_AWID = 1'b0; //ID doesn't matter in our application
-    logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_AWADDR = 16'b0000000000001000; //Just initializing the address
+    logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_AWADDR = 24'b000000000000000000000100; //Just initializing the address (Mem addr goes from 23:2)
     logic[7:0] S_AXI_AWLEN = 8'b00000000; //One burst at a time
     logic[2:0] S_AXI_AWSIZE = 3'b101; //32 Bit data bus
     logic[1:0] S_AXI_AWBURST = 2'b01; //Incremental burst, but we are only doing 1 burst at a time.
@@ -80,8 +80,8 @@ module Mic_Demo_V01(
     logic[C_S_AXI_AWUSER_WIDTH-1:0] S_AXI_AWUSER; //Signal doesn't matter
     logic S_AXI_AWVALID = 1'b0; //Initially 0
     logic S_AXI_AWREADY;
-    logic[C_S_AXI_DATA_WIDTH-1:0] S_AXI_WDATA = 32'b00000000000000000000000000000000;
-    logic[(C_S_AXI_DATA_WIDTH/8)-1:0] S_AXI_WSTRB = 4'b1111;
+    logic[C_S_AXI_DATA_WIDTH-1:0] S_AXI_WDATA = 32'b00000000000000000000000000000000; //Initializing data signal
+    logic[(C_S_AXI_DATA_WIDTH/8)-1:0] S_AXI_WSTRB = 4'b0000; //Have strobe read high bytes of Data
     logic S_AXI_WLAST = 1'b0;
     logic[C_S_AXI_WUSER_WIDTH-1:0] S_AXI_WUSER; // Signal doesn't matter
     logic S_AXI_WVALID = 1'b0; //Write Valid
@@ -92,7 +92,7 @@ module Mic_Demo_V01(
     logic S_AXI_BVALID; //Write Response Valid
     logic S_AXI_BREADY = 1'b0; //Response ready
     logic[C_S_AXI_ID_WIDTH-1:0] S_AXI_ARID = 1'b0;
-    logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_ARADDR = 16'b0000000000000000;
+    logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_ARADDR = 24'b000000000000000000000100;
     logic[7:0] S_AXI_ARLEN = 8'b00000000;
     logic[2:0] S_AXI_ARSIZE = 3'b101;
     logic[1:0] S_AXI_ARBURST = 2'b01;
@@ -126,7 +126,8 @@ psram_ip_v1_1_S00_AXI u1(clk, S_AXI_ARESETN, S_AXI_AWID, S_AXI_AWADDR, S_AXI_AWL
                          MEM_ADV, MEM_CRE, MEM_DATA_I, MEM_DATA_O, MEM_DATA_T);
                          
 logic[26:0] counter = 27'b000000000000000000000000000;  //Counter to count to 100 Million (1 Second)  
-logic [4:0] bitcounter = 5'b00000;   
+logic [5:0] bitcounter = 6'b010000;  // Initialize to 16 
+logic speakerswitch = 0;
 
 logic bstate, rstate, wstate, ledr, ledw = 1'b0;
 
@@ -139,6 +140,8 @@ debounce uut (
 );
 always @(posedge pb_read)begin
     rstate <= 1'b1;
+    S_AXI_ARVALID = 1; //Try to start the reading process
+    speakerswitch = 1;
 end
 
 always @(posedge clk)begin
@@ -148,6 +151,7 @@ always @(posedge clk)begin
         if(counter >= 99999999)begin
             counter = 0;
             rstate = 1'b0;
+            speakerswitch = 0;
             ledr <= 1'b0;
         end
     end
@@ -191,50 +195,83 @@ end
 //    if(S_AXI_AWREADY == 1'b1 & S_AXI_AWVALID == 1'b1)begin
 //       S_AXI_AWADDR = S_AXI_AWADDR + 1;
         
-always @(posedge clk)
-begin
-    if(clk_cntr_reg == 5'b01111 & bstate == 1) begin
-        bitcounter = bitcounter + 1;
-    end
-end
 
-integer i;
-
+integer i = 16;
+integer j = 0;
+integer k = 0;
+integer l = 0;
 //Writing to memory
 always @(posedge clk)
 begin
     if(clk_cntr_reg == 5'b01111 & wstate == 1) begin
-        pwm_val_reg = sdata;
-        i = bitcounter;
-        S_AXI_WDATA[i] = pwm_val_reg;
-        S_AXI_WVALID = 0; //Don't write yet
+        S_AXI_WDATA[i] = sdata;
+        i = i+1;
+        S_AXI_AWVALID = 0; //Don't write to address yet
+        S_AXI_WVALID = 0; //Don't write data yet
     end
-    if(i == 16 & wstate == 1) begin
+    if(i == 32 & wstate == 1) begin
+        j = 0;
+        i = 16;
         S_AXI_AWADDR = S_AXI_AWADDR + 1; //Increment address
-        S_AXI_AWVALID = 1; //Address is valid
-        S_AXI_WVALID = 1; //Data is valid
+        S_AXI_AWVALID = 1; //Address is valid and ready to be sent
     end
 end
+
+//This block switches between writing address and writing data
+//It uses up a few clock cycles to assure assertion and data transfer
+always @(posedge clk)
+begin
+    j = j + 1;
+    if(j >= 5 & S_AXI_AWVALID == 1 & wstate == 1) begin //Give AWVALID enough time to assert, then switch to write data
+        S_AXI_AWVALID = 0;
+        S_AXI_WVALID = 1; //Data is valid
+        j = 0;
+    end
+    if(j >= 5 & S_AXI_WVALID == 1 & wstate == 1) begin //Give WVALID enough time to assert, then stop writing
+        S_AXI_WVALID = 0;
+        j = 0;
+    end
+end
+
 //Reading from memory
 always @(posedge clk)
 begin
     if(clk_cntr_reg == 5'b01111 & rstate == 1) begin
-        i = bitcounter;
         pwm_val_reg = S_AXI_RDATA[i];
+        i = i + 1;
+        S_AXI_ARVALID = 0; //Read address
         S_AXI_RREADY = 0; //Don't read yet
     end
-    if(i == 16 & wstate == 1) begin
+    if(i == 32 & rstate == 1) begin
+        l = 0;
+        i = 16;
         S_AXI_ARADDR = S_AXI_ARADDR + 1; //Increment address
-        S_AXI_ARVALID = 1; //Address is valid
-        S_AXI_RREADY = 1; //Ready to Read
+        S_AXI_ARVALID = 1; //Address is valid and ready to be sent
     end
 end
+
+//This block switches between reading address and reading data
+//It uses up a few clock cycles to assure assertion and data transfer
+always @(posedge clk)
+begin
+    l = l + 1;
+    if(l >= 5 & S_AXI_ARVALID == 1 & rstate == 1) begin //Give ARVALID enough time to assert, then switch to reading data
+        S_AXI_ARVALID = 0;
+        S_AXI_RREADY = 1; //Ready to get read data
+        l = 0;
+    end
+    if(l >= 5 & S_AXI_RREADY == 1 & rstate == 1) begin //Give RREADY enough time to assert, then stop reading
+        S_AXI_RREADY = 0;
+        l = 0;
+    end
+end
+
 //sclk = 100MHz / 32 = 3.125 MHz
 assign sclk = clk_cntr_reg[4];
 
 assign anout = pwm_val_reg;
 assign ncs = 1'b0; 
-assign ampSD = 1'b1;
+assign ampSD = speakerswitch;
 
 
 endmodule
