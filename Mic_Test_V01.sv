@@ -152,6 +152,7 @@ always @(posedge clk)begin
             counter = 0;
             rstate = 1'b0;
             speakerswitch = 0;
+            S_AXI_ARADDR = 24'b000000000000000000000100;
             ledr <= 1'b0;
         end
     end
@@ -176,6 +177,7 @@ always @(posedge clk)begin
         if(counter >= 99999999)begin
             counter = 0;
             wstate = 1'b0;
+            S_AXI_AWADDR = 24'b000000000000000000000100;
             ledw <= 1'b0;
         end
     end
