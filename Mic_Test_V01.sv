@@ -28,7 +28,7 @@ module my_dff_en(input DFF_CLOCK, clock_enable,D, output reg Q=0);
     end
 endmodule
 
-module Mic_Demo_V01(
+module Mic_Demo(
     output anout,
     output ampSD,
 	output sclk,
@@ -40,19 +40,35 @@ module Mic_Demo_V01(
     output ledwrite,
     output ledread,
     
-    //Pass physical PSRAM signals up and out
-    output[22:0] MEM_ADDR_OUT,
-    output MEM_CEN,
-    output MEM_OEN,
-    output MEM_WEN,
-    output MEM_LBN,
-    output MEM_UBN,
-    output MEM_ADV,
-    output MEM_CRE,
-    input[15:0] MEM_DATA_I,
-    output[15:0] MEM_DATA_O,
-    output[15:0] MEM_DATA_T
+    //Pass physical DDR signals up and out
+    output[12:0] ddr2_addr,
+    output[2:0] ddr2_ba,
+    output ddr2_ras_n,
+    output ddr2_cas_n,
+    output ddr2_we_n,
+    output[0:0] ddr2_ck_p,
+    output[0:0] ddr2_ck_n,
+    output[0:0] ddr2_cke,
+    output[0:0] ddr2_cs_n,
+    output[1:0] ddr2_dm,
+    output[0:0] ddr2_odt,
+    inout[15:0] ddr2_dq,
+    inout[1:0] ddr2_dqs_p,
+    inout[1:0] ddr2_dqs_n
     );
+    
+    //PSRAM logic
+    logic[22:0] MEM_ADDR_OUT;
+    logic MEM_CEN;
+    logic MEM_OEN;
+    logic MEM_WEN;
+    logic MEM_LBN;
+    logic MEM_UBN;
+    logic MEM_ADV;
+    logic MEM_CRE;
+    logic[15:0] MEM_DATA_I;
+    logic[15:0] MEM_DATA_O;
+    logic[15:0] MEM_DATA_T;
     
     //AXI4 Full Bus Parameters
     parameter C_S_AXI_ID_WIDTH = 1;
@@ -67,6 +83,8 @@ module Mic_Demo_V01(
     //AXI4 Full Bus Signals
     //logic S_AXI_ACLK;
     logic S_AXI_ARESETN = 1'b1; //Initializing reset to high
+    
+    //AXI4 Write Address Channel
     logic[C_S_AXI_ID_WIDTH-1:0] S_AXI_AWID = 1'b0; //ID doesn't matter in our application
     logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_AWADDR = 24'b000000000000000000000100; //Just initializing the address (Mem addr goes from 23:2)
     logic[7:0] S_AXI_AWLEN = 8'b00000000; //One burst at a time
@@ -80,17 +98,23 @@ module Mic_Demo_V01(
     logic[C_S_AXI_AWUSER_WIDTH-1:0] S_AXI_AWUSER; //Signal doesn't matter
     logic S_AXI_AWVALID = 1'b0; //Initially 0
     logic S_AXI_AWREADY;
+    
+    //AXI4 Write Data Channel
     logic[C_S_AXI_DATA_WIDTH-1:0] S_AXI_WDATA = 32'b00000000000000000000000000000000; //Initializing data signal
     logic[(C_S_AXI_DATA_WIDTH/8)-1:0] S_AXI_WSTRB = 4'b0000; //Have strobe read high bytes of Data
     logic S_AXI_WLAST = 1'b0;
     logic[C_S_AXI_WUSER_WIDTH-1:0] S_AXI_WUSER; // Signal doesn't matter
     logic S_AXI_WVALID = 1'b0; //Write Valid
     logic S_AXI_WREADY; // Write ready
+    
+    //AXI4 Write Response Channel
     logic[C_S_AXI_ID_WIDTH-1:0] S_AXI_BID; //Response ID tag
     logic[1:0] S_AXI_BRESP; // Write Response
     logic[C_S_AXI_BUSER_WIDTH-1:0] S_AXI_BUSER; // Signal doesn't matter
     logic S_AXI_BVALID; //Write Response Valid
     logic S_AXI_BREADY = 1'b0; //Response ready
+    
+    //AXI4 Read Address Channel
     logic[C_S_AXI_ID_WIDTH-1:0] S_AXI_ARID = 1'b0;
     logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_ARADDR = 24'b000000000000000000000100;
     logic[7:0] S_AXI_ARLEN = 8'b00000000;
@@ -104,6 +128,8 @@ module Mic_Demo_V01(
     logic[C_S_AXI_ARUSER_WIDTH-1:0] S_AXI_ARUSER;
     logic S_AXI_ARVALID = 1'b0;
     logic S_AXI_ARREADY;
+    
+    //AXI4 Read Data Channel
     logic[C_S_AXI_ID_WIDTH-1:0] S_AXI_RID;
     logic[C_S_AXI_DATA_WIDTH-1:0] S_AXI_RDATA;
     logic[1:0] S_AXI_RRESP;
@@ -112,23 +138,33 @@ module Mic_Demo_V01(
     logic S_AXI_RVALID;
     logic S_AXI_RREADY = 1'b0;
     
+    //Buffers for read/write address and data
+    logic[C_S_AXI_ADDR_WIDTH-1:0] Write_Add = 24'b000000000000000000000100;
+    logic[C_S_AXI_DATA_WIDTH-1:0] Write_Data = 32'b00000000000000000000000000000000;
+    logic[C_S_AXI_ADDR_WIDTH-1:0] Read_Add = 24'b000000000000000000000100;
+    logic[C_S_AXI_DATA_WIDTH-1:0] Read_Data;
+    
 psram_ip_v1_1_S00_AXI u1(clk, S_AXI_ARESETN, S_AXI_AWID, S_AXI_AWADDR, S_AXI_AWLEN,
                          S_AXI_AWSIZE, S_AXI_AWBURST, S_AXI_AWLOCK, S_AXI_AWCACHE,
-                         S_AXI_AWPROT, S_AXI_AWQOS, S_AXI_AWREGION, S_AXI_AWUSER,
+                         S_AXI_AWPROT, S_AXI_AWQOS, S_AXI_AWREGION, 
                          S_AXI_AWVALID, S_AXI_AWREADY, S_AXI_WDATA, S_AXI_WSTRB,
-                         S_AXI_WLAST, S_AXI_WUSER, S_AXI_WVALID, S_AXI_WREADY, 
+                         S_AXI_WLAST, S_AXI_WVALID, S_AXI_WREADY, 
                          S_AXI_BID, S_AXI_BRESP, S_AXI_BUSER, S_AXI_BVALID, S_AXI_BREADY,
                          S_AXI_ARID, S_AXI_ARADDR, S_AXI_ARLEN, S_AXI_ARSIZE, S_AXI_ARBURST,
                          S_AXI_ARLOCK, S_AXI_ARCACHE, S_AXI_ARPROT, S_AXI_ARQOS, S_AXI_ARREGION,
-                         S_AXI_ARUSER, S_AXI_ARVALID, S_AXI_ARREADY, S_AXI_RID, S_AXI_RDATA,
+                          S_AXI_ARVALID, S_AXI_ARREADY, S_AXI_RID, S_AXI_RDATA,
                          S_AXI_RRESP, S_AXI_RLAST, S_AXI_RUSER, S_AXI_RVALID, S_AXI_RREADY,
                          MEM_ADDR_OUT, MEM_CEN, MEM_OEN, MEM_WEN, MEM_LBN, MEM_UBN,
                          MEM_ADV, MEM_CRE, MEM_DATA_I, MEM_DATA_O, MEM_DATA_T);
-                         
+
+//Logic for SRAM-to-DDR Module, Module Instantiation
+logic rst_i = 0;     
+logic[11:0] device_temp_i = 12'b000000000000;                
+
+//State and Counter logic                
 logic[26:0] counter = 27'b000000000000000000000000000;  //Counter to count to 100 Million (1 Second)  
 logic [5:0] bitcounter = 6'b010000;  // Initialize to 16 
 logic speakerswitch = 0;
-
 logic bstate, rstate, wstate, ledr, ledw = 1'b0;
 
 //Button debounce for reading
@@ -152,7 +188,7 @@ always @(posedge clk)begin
             counter = 0;
             rstate = 1'b0;
             speakerswitch = 0;
-            S_AXI_ARADDR = 24'b000000000000000000000100;
+            Read_Add = 24'b000000000000000000000100;
             ledr <= 1'b0;
         end
     end
@@ -177,7 +213,7 @@ always @(posedge clk)begin
         if(counter >= 99999999)begin
             counter = 0;
             wstate = 1'b0;
-            S_AXI_AWADDR = 24'b000000000000000000000100;
+            Write_Add = 24'b000000000000000000000100;
             ledw <= 1'b0;
         end
     end
@@ -191,17 +227,12 @@ always @(posedge clk)
 begin
     clk_cntr_reg <= clk_cntr_reg + 1;
 end
-
-//always @(posedge clk)
-//begin
-//    if(S_AXI_AWREADY == 1'b1 & S_AXI_AWVALID == 1'b1)begin
-//       S_AXI_AWADDR = S_AXI_AWADDR + 1;
         
-
 integer i = 16;
 integer j = 0;
 integer k = 0;
 integer l = 0;
+
 //Writing to memory
 always @(posedge clk)
 begin
@@ -239,7 +270,7 @@ end
 always @(posedge clk)
 begin
     if(clk_cntr_reg == 5'b01111 & rstate == 1) begin
-        pwm_val_reg = S_AXI_RDATA[i];
+        pwm_val_reg = Read_Data[i];
         i = i + 1;
         S_AXI_ARVALID = 0; //Read address
         S_AXI_RREADY = 0; //Don't read yet
@@ -247,24 +278,28 @@ begin
     if(i == 32 & rstate == 1) begin
         l = 0;
         i = 16;
-        S_AXI_ARADDR = S_AXI_ARADDR + 1; //Increment address
+        Read_Add = Read_Add + 1; //Increment address
+        S_AXI_ARADDR = Read_Add;
         S_AXI_ARVALID = 1; //Address is valid and ready to be sent
     end
 end
 
 //This block switches between reading address and reading data
-//It uses up a few clock cycles to assure assertion and data transfer
+//It uses up a couple of clock cycles to assure assertion and data transfer
 always @(posedge clk)
 begin
     l = l + 1;
-    if(l >= 5 & S_AXI_ARVALID == 1 & rstate == 1) begin //Give ARVALID enough time to assert, then switch to reading data
+    if(l >= 2 & S_AXI_ARVALID == 1 & S_AXI_ARREADY == 0 & rstate == 1) begin //Give ARVALID enough time to assert, then switch to reading data
         S_AXI_ARVALID = 0;
         S_AXI_RREADY = 1; //Ready to get read data
         l = 0;
     end
-    if(l >= 5 & S_AXI_RREADY == 1 & rstate == 1) begin //Give RREADY enough time to assert, then stop reading
+    if(l >= 2 & S_AXI_RREADY == 1 & S_AXI_RVALID == 0 & rstate == 1) begin //Give RREADY enough time to assert, then stop reading
         S_AXI_RREADY = 0;
         l = 0;
+    end
+    if(S_AXI_RVALID == 1)begin
+        Read_Data = S_AXI_RDATA; //Lock in Read data to buffer
     end
 end
 
