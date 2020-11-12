@@ -38,23 +38,7 @@ module Mic_Demo(
     input bt1,
     input bt2,
     output ledwrite,
-    output ledread,
-    
-    //Pass physical DDR signals up and out
-    output[12:0] ddr2_addr,
-    output[2:0] ddr2_ba,
-    output ddr2_ras_n,
-    output ddr2_cas_n,
-    output ddr2_we_n,
-    output[0:0] ddr2_ck_p,
-    output[0:0] ddr2_ck_n,
-    output[0:0] ddr2_cke,
-    output[0:0] ddr2_cs_n,
-    output[1:0] ddr2_dm,
-    output[0:0] ddr2_odt,
-    inout[15:0] ddr2_dq,
-    inout[1:0] ddr2_dqs_p,
-    inout[1:0] ddr2_dqs_n
+    output ledread
     );
     
     //PSRAM logic
@@ -89,7 +73,7 @@ module Mic_Demo(
     logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_AWADDR = 24'b000000000000000000000100; //Just initializing the address (Mem addr goes from 23:2)
     logic[7:0] S_AXI_AWLEN = 8'b00000000; //One burst at a time
     logic[2:0] S_AXI_AWSIZE = 3'b101; //32 Bit data bus
-    logic[1:0] S_AXI_AWBURST = 2'b01; //Incremental burst, but we are only doing 1 burst at a time.
+    logic[1:0] S_AXI_AWBURST = 2'b00; //Fixed burst, but we are only doing 1 burst at a time.
     logic S_AXI_AWLOCK = 1'b0; //Lock type, doesn't really matter
     logic[3:0] S_AXI_AWCACHE = 1'b0000; //Don't need any cache assitance
     logic[2:0] S_AXI_AWPROT = 3'b001; //Data, secure, priviledged access
@@ -102,7 +86,7 @@ module Mic_Demo(
     //AXI4 Write Data Channel
     logic[C_S_AXI_DATA_WIDTH-1:0] S_AXI_WDATA = 32'b00000000000000000000000000000000; //Initializing data signal
     logic[(C_S_AXI_DATA_WIDTH/8)-1:0] S_AXI_WSTRB = 4'b0000; //Have strobe read high bytes of Data
-    logic S_AXI_WLAST = 1'b0;
+    logic S_AXI_WLAST = 1'b1;
     logic[C_S_AXI_WUSER_WIDTH-1:0] S_AXI_WUSER; // Signal doesn't matter
     logic S_AXI_WVALID = 1'b0; //Write Valid
     logic S_AXI_WREADY; // Write ready
@@ -119,7 +103,7 @@ module Mic_Demo(
     logic[C_S_AXI_ADDR_WIDTH-1:0] S_AXI_ARADDR = 24'b000000000000000000000100;
     logic[7:0] S_AXI_ARLEN = 8'b00000000;
     logic[2:0] S_AXI_ARSIZE = 3'b101;
-    logic[1:0] S_AXI_ARBURST = 2'b01;
+    logic[1:0] S_AXI_ARBURST = 2'b00;
     logic S_AXI_ARLOCK = 1'b0;
     logic[3:0] S_AXI_ARCACHE = 4'b0000;
     logic[2:0] S_AXI_ARPROT = 3'b001;
@@ -139,9 +123,9 @@ module Mic_Demo(
     logic S_AXI_RREADY = 1'b0;
     
     //Buffers for read/write address and data
-    logic[C_S_AXI_ADDR_WIDTH-1:0] Write_Add = 24'b000000000000000000000100;
+    logic[C_S_AXI_ADDR_WIDTH-1:0] Write_Add = 24'b000000000000000000000000;
     logic[C_S_AXI_DATA_WIDTH-1:0] Write_Data = 32'b00000000000000000000000000000000;
-    logic[C_S_AXI_ADDR_WIDTH-1:0] Read_Add = 24'b000000000000000000000100;
+    logic[C_S_AXI_ADDR_WIDTH-1:0] Read_Add = 24'b000000000000000000000000;
     logic[C_S_AXI_DATA_WIDTH-1:0] Read_Data;
     
 psram_ip_v1_1_S00_AXI u1(clk, S_AXI_ARESETN, S_AXI_AWID, S_AXI_AWADDR, S_AXI_AWLEN,
@@ -149,17 +133,13 @@ psram_ip_v1_1_S00_AXI u1(clk, S_AXI_ARESETN, S_AXI_AWID, S_AXI_AWADDR, S_AXI_AWL
                          S_AXI_AWPROT, S_AXI_AWQOS, S_AXI_AWREGION, 
                          S_AXI_AWVALID, S_AXI_AWREADY, S_AXI_WDATA, S_AXI_WSTRB,
                          S_AXI_WLAST, S_AXI_WVALID, S_AXI_WREADY, 
-                         S_AXI_BID, S_AXI_BRESP, S_AXI_BUSER, S_AXI_BVALID, S_AXI_BREADY,
+                         S_AXI_BID, S_AXI_BRESP, S_AXI_BVALID, S_AXI_BREADY,
                          S_AXI_ARID, S_AXI_ARADDR, S_AXI_ARLEN, S_AXI_ARSIZE, S_AXI_ARBURST,
                          S_AXI_ARLOCK, S_AXI_ARCACHE, S_AXI_ARPROT, S_AXI_ARQOS, S_AXI_ARREGION,
                           S_AXI_ARVALID, S_AXI_ARREADY, S_AXI_RID, S_AXI_RDATA,
-                         S_AXI_RRESP, S_AXI_RLAST, S_AXI_RUSER, S_AXI_RVALID, S_AXI_RREADY,
+                         S_AXI_RRESP, S_AXI_RLAST, S_AXI_RVALID, S_AXI_RREADY,
                          MEM_ADDR_OUT, MEM_CEN, MEM_OEN, MEM_WEN, MEM_LBN, MEM_UBN,
                          MEM_ADV, MEM_CRE, MEM_DATA_I, MEM_DATA_O, MEM_DATA_T);
-
-//Logic for SRAM-to-DDR Module, Module Instantiation
-logic rst_i = 0;     
-logic[11:0] device_temp_i = 12'b000000000000;                
 
 //State and Counter logic                
 logic[26:0] counter = 27'b000000000000000000000000000;  //Counter to count to 100 Million (1 Second)  
@@ -167,33 +147,27 @@ logic [5:0] bitcounter = 6'b010000;  // Initialize to 16
 logic speakerswitch = 0;
 logic bstate, rstate, wstate, ledr, ledw = 1'b0;
 
-//Button debounce for reading
-wire pb_read;
-debounce uut (
-    .pb_1(bt1), 
-    .clk(clk), 
-    .pb_out(pb_read)
-);
-always @(posedge pb_read)begin
-    rstate <= 1'b1;
-    S_AXI_ARVALID = 1; //Try to start the reading process
-    speakerswitch = 1;
-end
+//Wrapper for Block Memory
+//logic en;
+logic wea = 1;
+logic[17:0] addra = 0;
+logic[15:0] dina = 0;
+logic[15:0] douta = 0;
+blk_mem_gen_0 bm(clk, wea, addra, dina, douta);
 
-always @(posedge clk)begin
-    if(rstate == 1)begin
-        ledr = 1'b1;
-        counter = counter + 1;
-        if(counter >= 99999999)begin
-            counter = 0;
-            rstate = 1'b0;
-            speakerswitch = 0;
-            Read_Add = 24'b000000000000000000000100;
-            ledr <= 1'b0;
-        end
+integer a_count = 3;
+always @(posedge clk)
+begin
+    addra = MEM_ADDR_OUT[17:0] - (a_count - 1);
+    if(wstate == 1)begin
+        wea = 1;
+        dina = MEM_DATA_O;
     end
-end  
-assign ledread = ledr;
+    if(rstate == 1)begin
+        wea = 0;
+        MEM_DATA_I = douta;
+    end   
+end
 
 //Button debounce for writing
 wire pb_write;
@@ -202,113 +176,139 @@ debounce uut2 (
     .clk(clk), 
     .pb_out(pb_write)
 );
-always @(posedge pb_write)begin
-    wstate <= 1'b1;
-end
+//Button debounce for reading
+wire pb_read;
+debounce uut (
+    .pb_1(bt1), 
+    .clk(clk), 
+    .pb_out(pb_read)
+);
 
-always @(posedge clk)begin
-    if(wstate == 1)begin
+assign ledwrite = ledw;
+assign ledread = ledr;
+
+//reg [4:0]clk_cntr_reg = 5'b00000;
+integer clk_cntr_reg = 0;
+reg pwm_val_reg;
+
+always @(posedge clk)
+begin
+    clk_cntr_reg = clk_cntr_reg + 1;
+    if(clk_cntr_reg > 32)begin
+        clk_cntr_reg = 0;
+    end
+end
+        
+integer i = 16;
+integer j = 0;
+integer k = 16;
+integer l = 0;
+
+
+//Writing/Reading to memory
+always @(posedge clk)
+begin
+if(wstate == 1)begin
         ledw = 1'b1;
         counter = counter + 1;
         if(counter >= 99999999)begin
             counter = 0;
+            a_count = 3;
             wstate = 1'b0;
             Write_Add = 24'b000000000000000000000100;
             ledw <= 1'b0;
         end
     end
-end  
-assign ledwrite = ledw;
-
-reg [4:0]clk_cntr_reg;
-reg pwm_val_reg;
-
-always @(posedge clk)
-begin
-    clk_cntr_reg <= clk_cntr_reg + 1;
-end
-        
-integer i = 16;
-integer j = 0;
-integer k = 0;
-integer l = 0;
-
-//Writing to memory
-always @(posedge clk)
-begin
-    if(clk_cntr_reg == 5'b01111 & wstate == 1) begin
-        S_AXI_WDATA[i] = sdata;
+    if(rstate == 1)begin
+        ledr = 1'b1;
+        counter = counter + 1;
+        if(counter >= 99999999)begin
+            counter = 0;
+            a_count = 3;
+            rstate = 1'b0;
+            speakerswitch = 0;
+            Read_Add = 24'b000000000000000000000100;
+            ledr <= 1'b0;
+        end
+    end
+    if(bt1 == 1)begin
+        rstate <= 1'b1;
+        //S_AXI_ARVALID = 1; //Try to start the reading process
+        speakerswitch = 1;
+    end
+    if(bt2 == 1)begin
+        wstate <= 1'b1;
+    end
+    ////////////////WRITING
+    j = j + 1;
+    if(clk_cntr_reg == 32 & S_AXI_AWVALID == 0 & wstate == 1)begin
+        Write_Data[i] = sdata;
         i = i+1;
-        S_AXI_AWVALID = 0; //Don't write to address yet
-        S_AXI_WVALID = 0; //Don't write data yet
+        //S_AXI_AWVALID = 0; //Don't write to address yet
+        //S_AXI_WVALID = 0; //Don't write data yet
     end
     if(i == 32 & wstate == 1) begin
         j = 0;
         i = 16;
-        S_AXI_AWADDR = S_AXI_AWADDR + 1; //Increment address
+        a_count = a_count + 1;
+        Write_Add = Write_Add + 4; //Increment address
+        S_AXI_AWADDR = Write_Add;
         S_AXI_AWVALID = 1; //Address is valid and ready to be sent
     end
-end
-
-//This block switches between writing address and writing data
-//It uses up a few clock cycles to assure assertion and data transfer
-always @(posedge clk)
-begin
-    j = j + 1;
-    if(j >= 5 & S_AXI_AWVALID == 1 & wstate == 1) begin //Give AWVALID enough time to assert, then switch to write data
+    /////////////////////
+    if(j >= 2 & S_AXI_AWVALID == 1 & S_AXI_AWREADY == 1 & wstate == 1) begin //Give AWVALID enough time to assert, then switch to write data
         S_AXI_AWVALID = 0;
         S_AXI_WVALID = 1; //Data is valid
         j = 0;
     end
-    if(j >= 5 & S_AXI_WVALID == 1 & wstate == 1) begin //Give WVALID enough time to assert, then stop writing
+    if(j >= 2 & S_AXI_WVALID == 1 & S_AXI_WREADY == 1 & wstate == 1) begin //Give WVALID enough time to assert, then stop writing
         S_AXI_WVALID = 0;
         j = 0;
     end
-end
-
-//Reading from memory
-always @(posedge clk)
-begin
-    if(clk_cntr_reg == 5'b01111 & rstate == 1) begin
-        pwm_val_reg = Read_Data[i];
-        i = i + 1;
-        S_AXI_ARVALID = 0; //Read address
-        S_AXI_RREADY = 0; //Don't read yet
+    if(S_AXI_WVALID == 1)begin
+        S_AXI_WDATA = Write_Data;
     end
-    if(i == 32 & rstate == 1) begin
+    if(S_AXI_WVALID == 0)begin
+        S_AXI_WDATA = 0;
+    end
+    ///////////////////READING
+    l = l + 1;
+    if(bt1 == 1)begin
+        S_AXI_ARVALID = 1; //Try to start the reading process
+    end
+    if(clk_cntr_reg == 32 & S_AXI_ARVALID == 0 & rstate == 1) begin
+        pwm_val_reg = Read_Data[k];
+        k = k + 1;
+        //S_AXI_ARVALID = 0; //Read address
+        //S_AXI_RREADY = 0; //Don't read yet
+    end
+    if(k == 32 & rstate == 1) begin
         l = 0;
-        i = 16;
-        Read_Add = Read_Add + 1; //Increment address
+        k = 16;
+        a_count = a_count + 1;
+        Read_Add = Read_Add + 4; //Increment address
         S_AXI_ARADDR = Read_Add;
         S_AXI_ARVALID = 1; //Address is valid and ready to be sent
     end
-end
-
-//This block switches between reading address and reading data
-//It uses up a couple of clock cycles to assure assertion and data transfer
-always @(posedge clk)
-begin
-    l = l + 1;
-    if(l >= 2 & S_AXI_ARVALID == 1 & S_AXI_ARREADY == 0 & rstate == 1) begin //Give ARVALID enough time to assert, then switch to reading data
+    //////////////////
+     //l = l + 1;
+    if(l >= 2 & S_AXI_ARVALID == 1 & S_AXI_ARREADY == 1 & rstate == 1) begin //Give ARVALID enough time to assert, then switch to reading data
         S_AXI_ARVALID = 0;
         S_AXI_RREADY = 1; //Ready to get read data
         l = 0;
     end
-    if(l >= 2 & S_AXI_RREADY == 1 & S_AXI_RVALID == 0 & rstate == 1) begin //Give RREADY enough time to assert, then stop reading
+    if(l >= 2 & S_AXI_RREADY == 1 & S_AXI_RVALID == 1 & rstate == 1) begin //Give RREADY enough time to assert, then stop reading
         S_AXI_RREADY = 0;
         l = 0;
     end
-    if(S_AXI_RVALID == 1)begin
+    if(S_AXI_RREADY == 1)begin
         Read_Data = S_AXI_RDATA; //Lock in Read data to buffer
     end
 end
 
-//sclk = 100MHz / 32 = 3.125 MHz
 assign sclk = clk_cntr_reg[4];
-
 assign anout = pwm_val_reg;
 assign ncs = 1'b0; 
 assign ampSD = speakerswitch;
-
 
 endmodule
