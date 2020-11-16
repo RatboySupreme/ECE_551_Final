@@ -232,12 +232,12 @@ if(wstate == 1)begin
             ledr <= 1'b0;
         end
     end
-    if(bt1 == 1)begin
+    if(pb_read == 1)begin
         rstate <= 1'b1;
         S_AXI_ARVALID = 1; //Try to start the reading process
         speakerswitch = 1;
     end
-    if(bt2 == 1)begin
+    if(pb_write == 1)begin
         wstate <= 1'b1;
     end
     ////////////////WRITING
